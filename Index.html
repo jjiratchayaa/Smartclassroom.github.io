@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Auditorium Classroom 3D Simulator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts: Kanit -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        kanit: ['Kanit', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            400: '#38bdf8',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Kanit', sans-serif;
+            background: radial-gradient(circle at top center, #0f172a 0%, #020617 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Glassmorphism Styles */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* 3D Auditorium View Controls */
+        .viewport-3d {
+            perspective: 1200px;
+            overflow: hidden;
+        }
+
+        .auditorium-3d {
+            width: 620px;
+            height: 480px;
+            position: relative;
+            transform-style: preserve-3d;
+            transform: rotateX(55deg) rotateZ(-30deg) translateY(-30px);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Auditorium Floor & Walls */
+        .aud-floor {
+            position: absolute;
+            inset: 0;
+            background: #0f172a;
+            border: 4px solid #334155;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+            border-radius: 8px;
+        }
+
+        .aud-stage-area {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 120px;
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border-bottom: 3px solid #3b82f6;
+        }
+
+        /* Stage Podium & Projection Screen */
+        .screen-3d {
+            position: absolute;
+            top: -110px;
+            left: 110px;
+            width: 400px;
+            height: 110px;
+            background: linear-gradient(135deg, #0284c7 0%, #1e1b4b 100%);
+            border: 4px solid #e2e8f0;
+            border-radius: 4px;
+            transform: rotateX(-90deg);
+            transform-origin: bottom;
+            box-shadow: 0 0 35px rgba(56, 189, 248, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .podium-3d {
+            position: absolute;
+            top: 40px;
+            right: 80px;
+            width: 70px;
+            height: 45px;
+            background: #334155;
+            border: 2px solid #64748b;
+            border-radius: 4px;
+            transform: translateZ(12px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.5);
+        }
+
+        .speaker-avatar {
+            position: absolute;
+            top: 50px;
+            right: 105px;
+            width: 20px;
+            height: 20px;
+            background: #f43f5e;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            transform: translateZ(28px);
+            box-shadow: 0 0 10px #f43f5e;
+        }
+
+        /* Tiered Seating Steps (Auditorium Steps) */
+        .tier-step {
+            position: absolute;
+            left: 20px;
+            right: 20px;
+            height: 60px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            box-shadow: 0 6px 0 #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            padding: 0 15px;
+            gap: 8px;
+        }
+
+        .tier-1 { top: 145px; transform: translateZ(15px); }
+        .tier-2 { top: 215px; transform: translateZ(35px); }
+        .tier-3 { top: 285px; transform: translateZ(55px); }
+        .tier-4 { top: 355px; transform: translateZ(75px); }
+        .tier-5 { top: 415px; transform: translateZ(95px); }
+
+        /* Audience Seats & Person Indicator */
+        .aud-seat {
+            flex: 1;
+            height: 28px;
+            background: #334155;
+            border-radius: 4px;
+            border-bottom: 3px solid #1e293b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .aud-seat.occupied {
+            background: #475569;
+        }
+
+        .person-node {
+            width: 14px;
+            height: 14px;
+            background: #38bdf8;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            transform: translateZ(10px);
+            box-shadow: 0 0 8px #38bdf8;
+            animation: seatPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes seatPop {
+            0% { transform: translateZ(10px) scale(0); }
+            100% { transform: translateZ(10px) scale(1); }
+        }
+
+        /* Ceiling Devices (Lights & AC Outlets) */
+        .ceiling-light-fixture {
+            position: absolute;
+            width: 70px;
+            height: 14px;
+            background: #334155;
+            border-radius: 999px;
+            transform: translateZ(140px);
+            transition: all 0.3s ease;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        .ceiling-light-fixture.active {
+            background: #fef08a;
+            box-shadow: 0 0 45px 18px rgba(254, 240, 138, 0.65);
+        }
+
+        /* AC Duct & Wind Visuals */
+        .ac-duct {
+            position: absolute;
+            top: 15px;
+            left: 60px;
+            width: 500px;
+            height: 20px;
+            background: #475569;
+            border-radius: 4px;
+            transform: translateZ(130px);
+        }
+
+        .ac-stream {
+            position: absolute;
+            top: 35px;
+            left: 80px;
+            width: 460px;
+            height: 220px;
+            background: linear-gradient(180deg, rgba(56, 189, 248, 0.35) 0%, rgba(56, 189, 248, 0) 100%);
+            transform: rotateX(-20deg);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .ac-stream.active {
+            opacity: 1;
+            animation: acBreeze 1.2s infinite ease-in-out alternate;
+        }
+
+        @keyframes acBreeze {
+            0% { transform: rotateX(-20deg) translateY(0); opacity: 0.2; }
+            100% { transform: rotateX(-25deg) translateY(12px); opacity: 0.5; }
+        }
+
+        /* Custom Scrollbars */
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- Top Header Navigation -->
+    <header class="glass-panel sticky top-0 z-50 px-6 py-3.5 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-sky-500/10 text-sky-400 rounded-xl border border-sky-500/20 shadow-lg shadow-sky-500/10">
+                <i data-lucide="building-2" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold tracking-wide text-white flex items-center gap-2">
+                    SMART AUDITORIUM CLASSROOM
+                    <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-medium">IoT Active</span>
+                </h1>
+                <p class="text-xs text-slate-400">ระบบควบคุมสภาวะแวดล้อมห้องบรรยายขนาดใหญ่อัจฉริยะ (Tiered Lecture Hall)</p>
+            </div>
+        </div>
+
+        <!-- Mode Toggle Segmented Button -->
+        <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-700/80">
+            <button id="modeAutoBtn" onclick="setMode('auto')" class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 bg-sky-600 text-white shadow-md">
+                <i data-lucide="cpu" class="w-3.5 h-3.5"></i> อัตโนมัติ (Smart Auto)
+            </button>
+            <button id="modeManualBtn" onclick="setMode('manual')" class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 text-slate-400 hover:text-white">
+                <i data-lucide="sliders" class="w-3.5 h-3.5"></i> ควบคุมเอง (Manual Mode)
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main class="flex-1 p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-[1850px] w-full mx-auto">
+
+        <!-- Left Column: 3D Auditorium Visualizer & Entrance Simulator (7 Cols) -->
+        <section class="lg:col-span-7 flex flex-col gap-5">
+
+            <!-- 3D Viewport Card -->
+            <div class="glass-panel rounded-2xl p-4 flex flex-col relative overflow-hidden">
+                <div class="flex flex-wrap justify-between items-center mb-3 z-10 gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                        <h2 class="text-sm font-semibold text-slate-200">แบบจำลองสามมิติ ห้องบรรยายขั้นบันได (Interactive 3D Stage)</h2>
+                    </div>
+
+                    <!-- Camera Control Buttons -->
+                    <div class="flex items-center gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-700/80 text-xs text-slate-300">
+                        <button onclick="rotateAuditorium(-15)" class="px-2 py-1 hover:bg-slate-800 rounded flex items-center gap-1" title="หมุนซ้าย"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> ซ้าย</button>
+                        <button onclick="resetAuditoriumView()" class="px-2.5 py-1 hover:bg-slate-800 rounded font-medium text-sky-400">มุมปกติ</button>
+                        <button onclick="rotateAuditorium(15)" class="px-2 py-1 hover:bg-slate-800 rounded flex items-center gap-1" title="หมุนขวา">ขวา <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="pitchAuditorium(10)" class="px-2 py-1 hover:bg-slate-800 rounded ml-1" title="มุมก้ม/เงย"><i data-lucide="move-vertical" class="w-3.5 h-3.5"></i></button>
+                    </div>
+                </div>
+
+                <!-- 3D Canvas Stage -->
+                <div class="viewport-3d w-full h-[460px] flex items-center justify-center bg-slate-950/70 rounded-xl border border-slate-800/80 relative">
+                    
+                    <!-- Ambient Shadow Layer -->
+                    <div id="roomLightingOverlay" class="absolute inset-0 bg-slate-950/80 transition-opacity duration-500 pointer-events-none z-20"></div>
+
+                    <!-- Occupancy Entrance Sensor Laser Line -->
+                    <div class="absolute bottom-4 left-10 z-30 flex flex-col items-center pointer-events-none">
+                        <span class="text-[10px] text-cyan-400 bg-cyan-950/90 px-2 py-0.5 rounded border border-cyan-800/80 mb-1">Gate Sensor Active</span>
+                        <div class="w-28 h-0.5 bg-cyan-400 shadow-[0_0_12px_#22d3ee] animate-pulse"></div>
+                    </div>
+
+                    <!-- 3D Auditorium Room Object -->
+                    <div class="auditorium-3d" id="auditoriumObject">
+                        <div class="aud-floor"></div>
+
+                        <!-- Stage Area & Projection Screen -->
+                        <div class="aud-stage-area">
+                            <div class="screen-3d" id="screen3d">
+                                <span>SMART AUDITORIUM PRESENTS</span>
+                            </div>
+                            <div class="podium-3d"></div>
+                            <div class="speaker-avatar" title="วิทยากร / อาจารย์ผู้สอน"></div>
+                        </div>
+
+                        <!-- AC Ducts & Wind Stream -->
+                        <div class="ac-duct"></div>
+                        <div class="ac-stream" id="acStreamEffect"></div>
+
+                        <!-- 8 Ceiling Light Fixtures -->
+                        <div class="ceiling-light-fixture light-1" style="top: 155px; left: 80px;"></div>
+                        <div class="ceiling-light-fixture light-2" style="top: 155px; left: 470px;"></div>
+                        <div class="ceiling-light-fixture light-3" style="top: 225px; left: 80px;"></div>
+                        <div class="ceiling-light-fixture light-4" style="top: 225px; left: 470px;"></div>
+                        <div class="ceiling-light-fixture light-5" style="top: 295px; left: 80px;"></div>
+                        <div class="ceiling-light-fixture light-6" style="top: 295px; left: 470px;"></div>
+                        <div class="ceiling-light-fixture light-7" style="top: 365px; left: 80px;"></div>
+                        <div class="ceiling-light-fixture light-8" style="top: 365px; left: 470px;"></div>
+
+                        <!-- Tiered Seating Rows (5 Rows x 10 Seats = 50 Max Visual Seats) -->
+                        <div class="tier-step tier-1" id="tierRow-0"></div>
+                        <div class="tier-step tier-2" id="tierRow-1"></div>
+                        <div class="tier-step tier-3" id="tierRow-2"></div>
+                        <div class="tier-step tier-4" id="tierRow-3"></div>
+                        <div class="tier-step tier-5" id="tierRow-4"></div>
+                    </div>
+                </div>
+
+                <!-- Person Entry/Exit Simulator Panel -->
+                <div class="mt-4 p-4 bg-slate-900/90 border border-slate-800 rounded-xl flex flex-wrap justify-between items-center gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-500/20">
+                            <i data-lucide="users-round" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-semibold text-slate-200">จำลองการเข้า-ออกห้องบรรยาย (Occupancy Gate Counter)</div>
+                            <div class="text-[11px] text-slate-400">จำลองคนเดินผ่านเซ็นเซอร์บริเวณทางเข้าเพื่อทดสอบระบบ</div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Add/Remove Buttons -->
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <button onclick="addPeople(-10)" class="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-lg text-xs font-medium transition-all">-10</button>
+                        <button onclick="addPeople(-1)" class="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-lg text-xs font-medium transition-all">-1</button>
+                        <button onclick="addPeople(1)" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-medium transition-all shadow-md shadow-sky-600/30">+1 คน</button>
+                        <button onclick="addPeople(5)" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-medium transition-all shadow-md shadow-sky-600/30">+5 คน</button>
+                        <button onclick="addPeople(20)" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-all shadow-md shadow-indigo-600/30">+20 คน</button>
+                        <button onclick="clearPeople()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs transition-all">ล้างห้อง</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preset Scenarios Selector -->
+            <div class="glass-panel rounded-2xl p-4">
+                <div class="text-xs font-semibold text-slate-400 mb-2.5 flex items-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i> โหมดสถานการณ์จำลองรวดเร็ว (Quick Preset Scenarios)
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <button onclick="loadScenario(0)" class="p-3 glass-card hover:bg-slate-800/80 rounded-xl text-left border border-slate-700/60 transition-all">
+                        <div class="text-xs font-semibold text-slate-200">1. ห้องว่าง (Empty)</div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">0 คน • ระบบสแตนด์บาย</div>
+                    </button>
+                    <button onclick="loadScenario(12)" class="p-3 glass-card hover:bg-slate-800/80 rounded-xl text-left border border-slate-700/60 transition-all">
+                        <div class="text-xs font-semibold text-amber-300">2. สัมมนาเล็ก (Small)</div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">12 คน • แอร์ 25°C / ไฟ 4 ดวง</div>
+                    </button>
+                    <button onclick="loadScenario(45)" class="p-3 glass-card hover:bg-slate-800/80 rounded-xl text-left border border-slate-700/60 transition-all">
+                        <div class="text-xs font-semibold text-sky-300">3. คลาสเรียนปานกลาง</div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">45 คน • แอร์ 23°C / ไฟ 6 ดวง</div>
+                    </button>
+                    <button onclick="loadScenario(95)" class="p-3 glass-card hover:bg-slate-800/80 rounded-xl text-left border border-slate-700/60 transition-all">
+                        <div class="text-xs font-semibold text-rose-300">4. ปาฐกถาคนเต็มห้อง</div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">95 คน • แอร์ Turbo / ไฟ 8 ดวง</div>
+                    </button>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right Column: System Dashboard, Precision Control & Event Logs (5 Cols) -->
+        <section class="lg:col-span-5 flex flex-col gap-5">
+
+            <!-- Real-time Dashboard Grid -->
+            <div class="grid grid-cols-2 gap-3">
+
+                <!-- Metric 1: Total Occupancy -->
+                <div class="glass-panel rounded-2xl p-4 flex flex-col justify-between">
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs font-medium text-slate-400">ผู้เข้าร่วมในห้อง</span>
+                        <div class="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg">
+                            <i data-lucide="users" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="dashOccupancy" class="text-3xl font-bold text-white">0</span>
+                        <span class="text-xs text-slate-400">/ 100 คน</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                        <div id="occupancyProgressBar" class="bg-indigo-500 h-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Metric 2: AC & Temperature -->
+                <div class="glass-panel rounded-2xl p-4 flex flex-col justify-between">
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs font-medium text-slate-400">อุณหภูมิห้อง / แอร์</span>
+                        <div class="p-2 bg-sky-500/10 text-sky-400 rounded-lg">
+                            <i data-lucide="thermometer-snowflake" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="dashTemp" class="text-3xl font-bold text-sky-400">--</span>
+                        <span class="text-xs text-slate-400">°C</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400 mt-1 flex justify-between">
+                        <span>ระดับแอร์:</span>
+                        <span id="dashAcLevel" class="text-sky-300 font-semibold">Off</span>
+                    </div>
+                </div>
+
+                <!-- Metric 3: Lighting Lux -->
+                <div class="glass-panel rounded-2xl p-4 flex flex-col justify-between">
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs font-medium text-slate-400">ความสว่างห้อง</span>
+                        <div class="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
+                            <i data-lucide="sun" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="dashLux" class="text-3xl font-bold text-amber-300">0</span>
+                        <span class="text-xs text-slate-400">Lux</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400 mt-1 flex justify-between">
+                        <span>ดวงไฟเปิด:</span>
+                        <span id="dashLightCount" class="text-amber-400 font-semibold">0 / 8 ดวง</span>
+                    </div>
+                </div>
+
+                <!-- Metric 4: Power Consumption -->
+                <div class="glass-panel rounded-2xl p-4 flex flex-col justify-between">
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs font-medium text-slate-400">การใช้พลังงาน</span>
+                        <div class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
+                            <i data-lucide="zap" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="dashPower" class="text-3xl font-bold text-emerald-400">0.0</span>
+                        <span class="text-xs text-slate-400">kW</span>
+                    </div>
+                    <div class="text-[11px] text-emerald-400/90 mt-1 flex items-center gap-1">
+                        <i data-lucide="leaf" class="w-3.5 h-3.5"></i>
+                        <span id="dashEnergySavings">ประหยัดพลังงาน 100%</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Manual Precision Controls -->
+            <div class="glass-panel rounded-2xl p-5 border border-slate-700/80">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-semibold text-slate-200 text-sm flex items-center gap-2">
+                        <i data-lucide="sliders-horizontal" class="w-4 h-4 text-sky-400"></i> 
+                        แผงควบคุมอุปกรณ์แบบกำหนดเอง (Manual Override Panel)
+                    </h3>
+                    <span id="statusModeBadge" class="text-[11px] text-amber-400 bg-amber-400/10 px-2.5 py-0.5 rounded-full border border-amber-400/20 font-medium">
+                        🔒 ล็อกอยู่ในโหมดอัตโนมัติ
+                    </span>
+                </div>
+
+                <!-- Light Fixtures Count Selector -->
+                <div class="p-3.5 glass-card rounded-xl border border-slate-700/60 mb-3.5">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="lightbulb" class="w-4 h-4 text-amber-400"></i>
+                            <span class="text-xs font-semibold text-slate-200">ระบบไฟส่องสว่าง (ปรับเลือกจำนวนดวงเปิด)</span>
+                        </div>
+                        <span id="lblLightSelected" class="text-xs font-bold text-amber-300">0 ดวง</span>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1.5 mt-2">
+                        <button onclick="setManualLights(0)" class="btn-light-count px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700" data-count="0">ปิดหมด</button>
+                        <button onclick="setManualLights(2)" class="btn-light-count px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700" data-count="2">2 ดวง</button>
+                        <button onclick="setManualLights(4)" class="btn-light-count px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700" data-count="4">4 ดวง</button>
+                        <button onclick="setManualLights(6)" class="btn-light-count px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700" data-count="6">6 ดวง</button>
+                        <button onclick="setManualLights(8)" class="btn-light-count px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700" data-count="8">8 ดวง</button>
+                    </div>
+                </div>
+
+                <!-- AC & Fan Speed Level Selector -->
+                <div class="p-3.5 glass-card rounded-xl border border-slate-700/60">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="wind" class="w-4 h-4 text-sky-400"></i>
+                            <span class="text-xs font-semibold text-slate-200">ปรับระดับเครื่องปรับอากาศ & พัดลม</span>
+                        </div>
+                        <span id="lblAcSelected" class="text-xs font-bold text-sky-300">Off</span>
+                    </div>
+
+                    <div class="grid grid-cols-5 gap-1.5 mt-2">
+                        <button onclick="setManualAC('Off')" class="btn-ac-level px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700" data-level="Off">ปิด (Off)</button>
+                        <button onclick="setManualAC('Low')" class="btn-ac-level px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700" data-level="Low">Low</button>
+                        <button onclick="setManualAC('Medium')" class="btn-ac-level px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700" data-level="Medium">Medium</button>
+                        <button onclick="setManualAC('High')" class="btn-ac-level px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700" data-level="High">High</button>
+                        <button onclick="setManualAC('Turbo')" class="btn-ac-level px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700" data-level="Turbo">Turbo</button>
+                    </div>
+
+                    <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-700/60">
+                        <span class="text-xs text-slate-300">กำหนดอุณหภูมิเป้าหมาย:</span>
+                        <div class="flex items-center gap-2 bg-slate-900 px-3 py-1 rounded-lg border border-slate-700">
+                            <button onclick="adjustTemp(-1)" class="w-6 h-6 flex items-center justify-center text-slate-300 hover:bg-slate-800 rounded font-bold">-</button>
+                            <span id="lblTargetTemp" class="text-xs font-bold text-sky-400 w-10 text-center">24°C</span>
+                            <button onclick="adjustTemp(1)" class="w-6 h-6 flex items-center justify-center text-slate-300 hover:bg-slate-800 rounded font-bold">+</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Real-time IoT Event Activity Log -->
+            <div class="glass-panel rounded-2xl p-4 flex-1 flex flex-col min-h-[200px]">
+                <div class="flex justify-between items-center mb-2.5">
+                    <h3 class="font-semibold text-slate-200 text-xs flex items-center gap-2">
+                        <i data-lucide="activity" class="w-4 h-4 text-emerald-400"></i> 
+                        บันทึกการทำงานของระบบ (Real-Time System Log)
+                    </h3>
+                    <button onclick="clearLogList()" class="text-[11px] text-slate-500 hover:text-slate-300">ล้างบันทึก</button>
+                </div>
+
+                <div id="sysLogContainer" class="flex-1 space-y-2 overflow-y-auto max-h-[160px] custom-scroll pr-1 text-xs">
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="glass-panel mt-auto px-6 py-3 text-center text-xs text-slate-500">
+        Smart Auditorium Classroom Building Management System • พัฒนาเพื่อจำลองระบบอาคารประหยัดพลังงานอัจฉริยะ
+    </footer>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        const state = {
+            occupancy: 0,
+            maxCapacity: 100,
+            mode: 'auto',
+            lightsOn: 0,
+            acLevel: 'Off',
+            targetTemp: 25,
+            rotZ: -30,
+            rotX: 55
+        };
+
+        const acSpecs = {
+            'Off': { temp: 28, power: 0, windOpacity: 0 },
+            'Low': { temp: 25, power: 1.2, windOpacity: 0.3 },
+            'Medium': { temp: 23, power: 2.2, windOpacity: 0.55 },
+            'High': { temp: 21, power: 3.5, windOpacity: 0.8 },
+            'Turbo': { temp: 19, power: 4.8, windOpacity: 1.0 }
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            build3DSeats();
+            updateAll();
+            addSysLog('system', 'เริ่มต้นระบบควบคุม Smart Auditorium Classroom 3D');
+        });
+
+        function build3DSeats() {
+            for (let r = 0; r < 5; r++) {
+                const tierRow = document.getElementById(`tierRow-${r}`);
+                tierRow.innerHTML = '';
+                for (let s = 0; s < 10; s++) {
+                    const seat = document.createElement('div');
+                    seat.className = 'aud-seat';
+                    seat.id = `seat-${r}-${s}`;
+                    tierRow.appendChild(seat);
+                }
+            }
+        }
+
+        function addPeople(delta) {
+            const next = state.occupancy + delta;
+            if (next < 0) return;
+            if (next > state.maxCapacity) {
+                addSysLog('warning', `ห้องบรรยายเต็มแล้ว (ความจุสูงสุด ${state.maxCapacity} คน)`);
+                return;
+            }
+
+            state.occupancy = next;
+            const actionMsg = delta > 0 ? `เซ็นเซอร์ตรวจพบคนเข้าห้อง (+${delta})` : `เซ็นเซอร์ตรวจพบคนออกจากห้อง (${delta})`;
+            addSysLog('sensor', `${actionMsg} -> ยอดรวมคนในห้อง: ${state.occupancy} คน`);
+            updateAll();
+        }
+
+        function clearPeople() {
+            state.occupancy = 0;
+            addSysLog('sensor', 'เซ็นเซอร์ทำการเคลียร์คนออกจากห้องทั้งหมด (0 คน)');
+            updateAll();
+        }
+
+        function loadScenario(count) {
+            state.occupancy = count;
+            addSysLog('scenario', `โหลดชุดสถานการณ์จำลอง: ผู้เรียน ${count} คน`);
+            updateAll();
+        }
+
+        function setMode(newMode) {
+            state.mode = newMode;
+            const btnAuto = document.getElementById('modeAutoBtn');
+            const btnManual = document.getElementById('modeManualBtn');
+            const badge = document.getElementById('statusModeBadge');
+
+            if (newMode === 'auto') {
+                btnAuto.className = "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 bg-sky-600 text-white shadow-md";
+                btnManual.className = "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 text-slate-400 hover:text-white";
+                badge.innerHTML = "🔒 ล็อกอยู่ในโหมดอัตโนมัติ";
+                badge.className = "text-[11px] text-amber-400 bg-amber-400/10 px-2.5 py-0.5 rounded-full border border-amber-400/20 font-medium";
+                addSysLog('system', 'เปลี่ยนเป็นโหมดการทำงาน: อัตโนมัติ (Smart Auto Logic)');
+            } else {
+                btnManual.className = "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 bg-sky-600 text-white shadow-md";
+                btnAuto.className = "px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 text-slate-400 hover:text-white";
+                badge.innerHTML = "🔓 เปิดโหมดควบคุมด้วยตนเอง";
+                badge.className = "text-[11px] text-emerald-400 bg-emerald-400/10 px-2.5 py-0.5 rounded-full border border-emerald-400/20 font-medium";
+                addSysLog('system', 'เปลี่ยนเป็นโหมดการทำงาน: ควบคุมด้วยตนเอง (Manual Control)');
+            }
+
+            updateAll();
+        }
+
+        function updateAll() {
+            if (state.mode === 'auto') {
+                runAutoLogic();
+            }
+
+            render3DPeople();
+            render3DDevices();
+            renderDashboard();
+            renderManualControlUI();
+        }
+
+        function runAutoLogic() {
+            const c = state.occupancy;
+
+            if (c === 0) {
+                state.lightsOn = 0;
+                state.acLevel = 'Off';
+                state.targetTemp = 28;
+            } else if (c >= 1 && c <= 15) {
+                state.lightsOn = 2;
+                state.acLevel = 'Low';
+                state.targetTemp = 25;
+            } else if (c >= 16 && c <= 40) {
+                state.lightsOn = 4;
+                state.acLevel = 'Medium';
+                state.targetTemp = 24;
+            } else if (c >= 41 && c <= 75) {
+                state.lightsOn = 6;
+                state.acLevel = 'High';
+                state.targetTemp = 22;
+            } else {
+                state.lightsOn = 8;
+                state.acLevel = 'Turbo';
+                state.targetTemp = 20;
+            }
+        }
+
+        function render3DPeople() {
+            const visualOccupied = Math.min(Math.ceil(state.occupancy / 2), 50);
+
+            let seatIndex = 0;
+            for (let r = 0; r < 5; r++) {
+                for (let s = 0; s < 10; s++) {
+                    const seatEl = document.getElementById(`seat-${r}-${s}`);
+                    if (!seatEl) continue;
+                    seatEl.innerHTML = '';
+                    if (seatIndex < visualOccupied) {
+                        seatEl.classList.add('occupied');
+                        const personNode = document.createElement('div');
+                        personNode.className = 'person-node';
+                        personNode.title = `ที่นั่งแถวที่ ${r+1} เลขที่ ${s+1}`;
+                        seatEl.appendChild(personNode);
+                    } else {
+                        seatEl.classList.remove('occupied');
+                    }
+                    seatIndex++;
+                }
+            }
+        }
+
+        function render3DDevices() {
+            for (let i = 1; i <= 8; i++) {
+                const lightEl = document.querySelector(`.ceiling-light-fixture.light-${i}`);
+                if (lightEl) {
+                    if (i <= state.lightsOn) {
+                        lightEl.classList.add('active');
+                    } else {
+                        lightEl.classList.remove('active');
+                    }
+                }
+            }
+
+            const overlay = document.getElementById('roomLightingOverlay');
+            if (overlay) {
+                if (state.lightsOn === 0) {
+                    overlay.style.opacity = '0.85';
+                } else {
+                    const opacity = 0.7 - (state.lightsOn / 8) * 0.65;
+                    overlay.style.opacity = opacity.toFixed(2);
+                }
+            }
+
+            const stream = document.getElementById('acStreamEffect');
+            if (stream) {
+                if (state.acLevel === 'Off') {
+                    stream.classList.remove('active');
+                } else {
+                    stream.classList.add('active');
+                    stream.style.opacity = acSpecs[state.acLevel].windOpacity;
+                }
+            }
+        }
+
+        function renderDashboard() {
+            const occEl = document.getElementById('dashOccupancy');
+            if (occEl) occEl.textContent = state.occupancy;
+            
+            const bar = document.getElementById('occupancyProgressBar');
+            if (bar) {
+                const pct = Math.min((state.occupancy / state.maxCapacity) * 100, 100);
+                bar.style.width = `${pct}%`;
+            }
+
+            const tempVal = state.acLevel === 'Off' ? '28' : state.targetTemp;
+            const tempEl = document.getElementById('dashTemp');
+            if (tempEl) tempEl.textContent = tempVal;
+
+            const acLvlEl = document.getElementById('dashAcLevel');
+            if (acLvlEl) acLvlEl.textContent = state.acLevel;
+
+            const luxVal = state.lightsOn * 120;
+            const luxEl = document.getElementById('dashLux');
+            if (luxEl) luxEl.textContent = luxVal;
+
+            const lightCntEl = document.getElementById('dashLightCount');
+            if (lightCntEl) lightCntEl.textContent = `${state.lightsOn} / 8 ดวง`;
+
+            const acPower = acSpecs[state.acLevel].power;
+            const lightPower = state.lightsOn * 0.15;
+            const totalKw = (acPower + lightPower).toFixed(2);
+            
+            const pwrEl = document.getElementById('dashPower');
+            if (pwrEl) pwrEl.textContent = totalKw;
+
+            const maxKw = 6.0;
+            const savings = Math.max(0, Math.round(((maxKw - totalKw) / maxKw) * 100));
+            const saveEl = document.getElementById('dashEnergySavings');
+            if (saveEl) saveEl.textContent = `ประหยัดพลังงาน ${savings}%`;
+        }
+
+        function renderManualControlUI() {
+            document.querySelectorAll('.btn-light-count').forEach(btn => {
+                const cnt = parseInt(btn.getAttribute('data-count'));
+                if (cnt === state.lightsOn) {
+                    btn.className = "btn-light-count px-2 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-slate-950 border border-amber-400 shadow-md shadow-amber-500/20";
+                } else {
+                    btn.className = "btn-light-count px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700";
+                }
+            });
+            const lblLight = document.getElementById('lblLightSelected');
+            if (lblLight) lblLight.textContent = `${state.lightsOn} ดวง`;
+
+            document.querySelectorAll('.btn-ac-level').forEach(btn => {
+                const lvl = btn.getAttribute('data-level');
+                if (lvl === state.acLevel) {
+                    btn.className = "btn-ac-level px-2 py-1.5 rounded-lg text-xs font-semibold bg-sky-500 text-white border border-sky-400 shadow-md shadow-sky-500/20";
+                } else {
+                    btn.className = "btn-ac-level px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700";
+                }
+            });
+            const lblAc = document.getElementById('lblAcSelected');
+            if (lblAc) lblAc.textContent = state.acLevel;
+            
+            const lblTemp = document.getElementById('lblTargetTemp');
+            if (lblTemp) lblTemp.textContent = `${state.targetTemp}°C`;
+        }
+
+        function setManualLights(count) {
+            if (state.mode === 'auto') {
+                addSysLog('warning', 'โปรดสลับเป็น "โหมดควบคุมเอง" ก่อนปรับแต่งไฟ');
+                return;
+            }
+            state.lightsOn = count;
+            addSysLog('manual', `ผู้ใช้ปรับเปิดไฟส่องสว่างจำนวน: ${count} ดวง`);
+            updateAll();
+        }
+
+        function setManualAC(level) {
+            if (state.mode === 'auto') {
+                addSysLog('warning', 'โปรดสลับเป็น "โหมดควบคุมเอง" ก่อนปรับระดับแอร์');
+                return;
+            }
+            state.acLevel = level;
+            state.targetTemp = acSpecs[level].temp;
+            addSysLog('manual', `ผู้ใช้ปรับระดับแอร์เป็น: ${level}`);
+            updateAll();
+        }
+
+        function adjustTemp(delta) {
+            if (state.mode === 'auto') {
+                addSysLog('warning', 'โปรดสลับเป็น "โหมดควบคุมเอง" ก่อนปรับอุณหภูมิแอร์');
+                return;
+            }
+            const nextTemp = state.targetTemp + delta;
+            if (nextTemp >= 18 && nextTemp <= 28) {
+                state.targetTemp = nextTemp;
+                addSysLog('manual', `ปรับอุณหภูมิแอร์เป้าหมายเป็น: ${nextTemp}°C`);
+                updateAll();
+            }
+        }
+
+        function rotateAuditorium(deg) {
+            state.rotZ += deg;
+            applyAuditoriumTransform();
+        }
+
+        function pitchAuditorium(deg) {
+            state.rotX += deg;
+            if (state.rotX > 80) state.rotX = 80;
+            if (state.rotX < 20) state.rotX = 20;
+            applyAuditoriumTransform();
+        }
+
+        function resetAuditoriumView() {
+            state.rotZ = -30;
+            state.rotX = 55;
+            applyAuditoriumTransform();
+        }
+
+        function applyAuditoriumTransform() {
+            const audObj = document.getElementById('auditoriumObject');
+            if (audObj) {
+                audObj.style.transform = `rotateX(${state.rotX}deg) rotateZ(${state.rotZ}deg) translateY(-30px)`;
+            }
+        }
+
+        function addSysLog(type, text) {
+            const container = document.getElementById('sysLogContainer');
+            if (!container) return;
+            const now = new Date();
+            const timestamp = now.toTimeString().split(' ')[0];
+
+            const item = document.createElement('div');
+            item.className = "p-2 rounded-lg bg-slate-800/80 border border-slate-700/60 flex items-start gap-2 text-xs";
+
+            let iconTag = '';
+            if (type === 'sensor') {
+                iconTag = `<i data-lucide="footprints" class="w-3.5 h-3.5 text-cyan-400 mt-0.5"></i>`;
+            } else if (type === 'manual') {
+                iconTag = `<i data-lucide="sliders" class="w-3.5 h-3.5 text-amber-400 mt-0.5"></i>`;
+            } else if (type === 'warning') {
+                iconTag = `<i data-lucide="alert-circle" class="w-3.5 h-3.5 text-rose-400 mt-0.5"></i>`;
+            } else {
+                iconTag = `<i data-lucide="info" class="w-3.5 h-3.5 text-sky-400 mt-0.5"></i>`;
+            }
+
+            item.innerHTML = `
+                ${iconTag}
+                <div class="flex-1">
+                    <span class="text-[10px] text-slate-500 font-mono">[${timestamp}]</span>
+                    <span class="text-slate-200 ml-1.5">${text}</span>
+                </div>
+            `;
+
+            container.prepend(item);
+            lucide.createIcons();
+        }
+
+        function clearLogList() {
+            const container = document.getElementById('sysLogContainer');
+            if (container) container.innerHTML = '';
+        }
+    </script>
+</body>
+</html>
